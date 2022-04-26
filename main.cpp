@@ -2,37 +2,36 @@
 #include <vector>
 #include <map>
 using namespace std;
-pair<vector<int>,map<int,int>> fill_vector(vector<int> data, map<int, int>dataCounter, int count, int counter) {
+
+int inputInt(){
     int elem;
     cin >> elem;
+    return elem;
+}
+
+pair<vector<int>,map<int,int>> fill_vector(vector<int> data, map<int, int>dict, int count) {
+    int elem = inputInt();
     data.push_back(elem);
-    map<int,int>::iterator it = dataCounter.find(elem);
-    (it->first == elem) ? ++it->second : dataCounter[elem] = 1;
-    return counter++ == count ? make_pair(data, dataCounter): fill_vector(data, dataCounter, count, counter);
+    dict[elem]++;
+    return count > 1 ? fill_vector(data, dict, count-1) : make_pair(data, dict);
 }
 
-void print_vector(vector<int> data, int count, int counter){
-    cout << data[counter - 1] << " ";
-    return counter++ == count ? void() : print_vector(data, count, counter);
+void print_vector(vector<int> data, int count){
+    int size = data.size();
+    cout << data[size - count] << " ";
+    return count > 1 ? print_vector(data, count-1) : void();
 }
 
-void print_map(map<int,int>data,map<int,int>::iterator it){
-    cout << "Key = " << it->first << ", value = " << it->second << '\n';
-    return it == data.end() ? void() : print_map(data, ++it);
+void print_histogram(map<int,int>&data, map<int,int>::iterator it){
+    cout << it->first << ", count: " << it->second << endl;
+    return ++it != data.end() ?  print_histogram(data, it) : void();
 }
 
 int main() {
-    int count, counter = 1;
-    cin >> count;
-    vector<int> data;
-    map <int,int> dataCounter;
-    pair<vector<int>, map<int,int>>container = fill_vector(data,dataCounter, count, counter);
-    data = container.first;
-    dataCounter = container.second;
-    print_vector(data, count,  counter);
-    cout << endl;
-    print_map(dataCounter, dataCounter.begin());
-
-    std::cout << "\nHello, World!" << std::endl;
+    vector<int> data = {};
+    map<int,int> histogram = {};
+    histogram = fill_vector(data, histogram, inputInt()).second;
+    print_histogram(histogram, histogram.begin());
     return 0;
+
 }
