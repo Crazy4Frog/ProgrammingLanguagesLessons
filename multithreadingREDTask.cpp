@@ -6,6 +6,8 @@
 #include <chrono>
 #include <windows.h> 
 #include <stdio.h>
+#include <map>
+#include <cmath>
 #include <algorithm>
 using namespace std;
 
@@ -26,6 +28,7 @@ int numberOfCashiers, queueSize;
 bool BREAK_ALL = false;
 
 void cashier(int number);
+vector<int> findDivisors(int number);
 vector<int> findPeople(int money, vector<person> fakeQueue);
 
 // Change standard Ctrl + C event on this function
@@ -33,7 +36,7 @@ BOOL WINAPI CtrlC_Catcher(DWORD signal) {
 	if (signal == CTRL_C_EVENT)
 	{
 		mtxPrint.lock();
-		cout << "\n\nBank closes\n\n";
+		cout << "\n\nBank closes\n\n\n";
 		BREAK_ALL = true;
 		mtxPrint.unlock();
 	}
@@ -42,28 +45,29 @@ BOOL WINAPI CtrlC_Catcher(DWORD signal) {
 
 // Write 2 integers in input.txt to input them in program
 void input() {
-//	ifstream data;
-//	data.open("input.txt");
-//    data >> numberOfCashiers >> queueSize;
-    cin >> numberOfCashiers >> queueSize;
+	//ifstream data;
+	//data.open("input.txt");
+	//data >> numberOfCashiers >> queueSize;
+	cin >> numberOfCashiers >> queueSize;
 }
-
 
 // Initialize thread for every cashier in vector of cashiers
 void initializeCashierThreads() {
+	vector<thread> threads1;
 	threads.resize(numberOfCashiers);
-	for (int i = 0; i < numberOfCashiers; i++)
-	{
-		threads.push_back(thread(cashier, i));
-		threads[i].join();
-	}
+	for (int i = 0; i < numberOfCashiers; i++) { threads[i] = thread(cashier, i); }
 	cashiersCanFind = vector<bool>(numberOfCashiers, true);
+}
+
+// This function must be in last part of program
+void waitForCashiersThreads() {
+	for (int i = 0; i < numberOfCashiers; i++) { threads[i].join(); }
 }
 
 // Main logic of every cashier
 void cashier(int number) {
 	auto startCashier = chrono::system_clock::now();
-	chrono::duration<double> workTime = chrono::duration<double>(0);
+	chrono::duration<double> workingTime = chrono::duration<double>(0);
 	person currPer;
 	vector<person> fakeQueue;
 	bool worked = true;
@@ -85,14 +89,14 @@ void cashier(int number) {
 		}
 		mtx_a.unlock();
 
-		
+
 		// work with a client
 		auto startClientServicing = chrono::system_clock::now();
 		vector<int> suitableClients = findPeople(currPer.value, fakeQueue);
 		if (suitableClients.size() == 0) {
 			cashiersCanFind[number] = false;
 			mtxPrint.lock();
-			cout << "Cashier #" << number + 1 << " can't find a suitable client and sends a clear request";
+			cout << "Cashier #" << number + 1 << " can't find a suitable client and sends a clear request\n";
 			mtxPrint.unlock();
 			worked = false;
 
@@ -114,16 +118,16 @@ void cashier(int number) {
 				for (int i = 0; i < suitableClients.size(); i++)
 				{
 					mtxPrint.lock();
-					cout << number + 1 << " kass has deleted person with " << queue[suitableClients[i]].value << endl;
+					cout << "Cashier #" << number + 1 << " has deleted person with " << queue[suitableClients[i]].value << " money\n";
 					mtxPrint.unlock();
 					queue.erase(queue.begin() + suitableClients[i]);
 				}
 
 				mtxPrint.lock();
-				cout << number + 1 << " kass has served main person with " << currPer.value << endl;
+				cout << "Cashier #" << number + 1 << " has served main person with " << currPer.value << " money\n";
 				mtxPrint.unlock();
 				auto endClientServicing = chrono::system_clock::now();
-				workTime += endClientServicing - startClientServicing;
+				workingTime += endClientServicing - startClientServicing;
 				worked = true;
 			}
 			else {
@@ -134,119 +138,60 @@ void cashier(int number) {
 		}
 	}
 	auto endCashier = chrono::system_clock::now();
-	chrono::duration<double> cashierWorkingTime = endCashier - startCashier;
+	chrono::duration<double> cashierTotalTime = endCashier - startCashier;
+	chrono::duration<double> cashierStayTime = cashierTotalTime - workingTime;
 	mtxPrint.lock();
-	cout << "Cashier #" << number + 1 << " total time" << cashierWorkingTime.count();
+	cout << "CASHIER #" << number + 1 << ":\n\ttotal time: " << cashierTotalTime.count() << "\n";
+	cout << "\tworking time: " << workingTime.count() << "\n";
+	cout << "\tstay time: " << cashierStayTime.count() << "\n\n";
 	mtxPrint.unlock();
 }
 
+// Cashier uses this function to find people for client
 vector<int> findPeople(int money, vector<person> fakeQueue) {
 	vector<int> result;
-	vector<vector<int>> arr(6);
+	map<int, vector<int>> sortedClients;
 	int type = 0;
 	for (int i = 0; i != fakeQueue.size(); ++i) {
-
-		switch (fakeQueue[i].value)
-		{
-		case 2:
-			type = 0;
-			break;
-		case -2:
-			type = 1;
-			break;
-		case 6:
-			type = 2;
-			break;
-		case -6:
-			type = 3;
-			break;
-		case 12:
-			type = 4;
-			break;
-		default:
-			type = 5;
-		}
-		arr[type].push_back(i);
-
-		switch (money)
-		{
-		case 2:
-			if (arr[1].size() != 0) result.push_back(arr[1][0]);
-			break;
-		case -2:
-			if (arr[0].size() != 0) result.push_back(arr[0][0]);
-			break;
-		case 6:
-			if (arr[3].size() != 0) result.push_back(arr[3][0]);
-			else if (arr[1].size() >= 3) {
-				result.push_back(arr[1][0]);
-				result.push_back(arr[1][1]);
-				result.push_back(arr[1][2]);
+		int personValue = fakeQueue[i].value;
+		sortedClients[personValue].push_back(i);
+	}
+	if (sortedClients[-money].size() != 0) { result.push_back(sortedClients[-money][0]); }
+	else {
+		vector<int> divisors = findDivisors(abs(money));
+		sort(divisors.begin(), divisors.end(), [](int a, int b) { return a > b; }); // sort by descending
+		int sum = 0;
+		bool breakFor = false;
+		for (auto divisor : divisors) {
+			while (sortedClients[-divisor].size() != 0) {
+				sum += divisor;
+				result.push_back(sortedClients[-divisor].back());
+				sortedClients[-divisor].pop_back();
+				if (sum >= money) { breakFor = true; break; }
 			}
-			break;
-		case -6:
-			if (arr[2].size() != 0) result.push_back(arr[2][0]);
-			else if (arr[0].size() >= 3) {
-				result.push_back(arr[0][0]);
-				result.push_back(arr[0][1]);
-				result.push_back(arr[0][2]);
-			}
-			break;
-		case 12:
-			if (arr[5].size() != 0) result.push_back(arr[5][0]);
-			else if (arr[3].size() >= 2) {
-				result.push_back(arr[3][0]);
-				result.push_back(arr[3][1]);
-			}
-			else if (arr[3].size() != 0 && arr[1].size() >= 3) {
-				result.push_back(arr[3][0]);
-				result.push_back(arr[1][0]);
-				result.push_back(arr[1][1]);
-				result.push_back(arr[1][2]);
-			}
-			else if (arr[1].size() >= 6)
-			{
-				for (int i = 0; i < 6; i++)
-				{
-					result.push_back(arr[1][i]);
-				}
-			}
-			break;
-		case -12:
-			if (arr[4].size() != 0) result.push_back(arr[4][0]);
-			else if (arr[2].size() >= 2) {
-				result.push_back(arr[2][0]);
-				result.push_back(arr[2][1]);
-			}
-			else if (arr[2].size() != 0 && arr[0].size() >= 3) {
-				result.push_back(arr[2][0]);
-				result.push_back(arr[0][0]);
-				result.push_back(arr[0][1]);
-				result.push_back(arr[0][2]);
-			}
-			else if (arr[0].size() >= 6)
-			{
-				for (int i = 0; i < 6; i++)
-				{
-					result.push_back(arr[0][i]);
-				}
-			}
-		}
-		if (result.size() != 0) {
-			break;
+			if (breakFor) { break; }
 		}
 	}
-
 	return result;
 }
+// Find all divisors of number
+vector<int> findDivisors(int number) {
+	vector<int> divisors;
+	for (int divisor = 2; divisor <= number / 2; divisor++) {
+		if (number % divisor == 0) {
+			divisors.push_back(divisor);
+		}
+	}
+	return divisors;
+}
 
-// 
+// Generate a person if queue size at the moment less than queueSize
 void generateQueue() {
-	//random things for queueGenerator
-
+	//things for normal random
 	random_device rd; // initialise the seed of random engine
 	mt19937 rng(rd()); // random engine (Mersenne-Twister)
 	uniform_int_distribution<int> uni(0, MONEY_ARRAY_SIZE - 1); // chose the min and max size of random int
+
 	while (!BREAK_ALL) {
 		if (queue.size() < queueSize) {
 			mtx_a.lock();
@@ -254,26 +199,23 @@ void generateQueue() {
 			p.value = money[uni(rng)];
 			queue.push_back(p);
 			mtxPrint.lock();
-			cout << "generated " << p.value << endl;
+			cout << "GENERATOR: generated order " << p.value << " money\n";
 			mtxPrint.unlock();
 			mtx_a.unlock();
 		}
 	}
 }
 
-// 
+// clears queue if all elements of vector cashiersCanFind are false
 void clearQueue() {
 	while (!BREAK_ALL) {
 		if (all_of(cashiersCanFind.begin(), cashiersCanFind.end(), [](bool elem) { return !elem; })) {
 			mtx_a.lock();
 			queue.clear();
-			for (int i = 0; i < cashiersCanFind.size(); i++)
-			{
-				cashiersCanFind[i] = true;
-			}
+			cashiersCanFind = vector<bool>(numberOfCashiers, true);
 			mtx_a.unlock();
 			mtxPrint.lock();
-			cout << "\nqueue cleared\n";
+			cout << "CLEARER: queue was cleared\n";
 			mtxPrint.unlock();
 		}
 	}
@@ -289,6 +231,8 @@ int main() {
 	initializeCashierThreads();
 	thread queueGenerator(generateQueue);
 	thread queueClearer(clearQueue);
-
+	waitForCashiersThreads();
+	queueClearer.detach();
+	queueGenerator.detach();
 	return 0;
 }
